@@ -1,0 +1,10 @@
+{
+    "win32": {
+		"32bit": "external/bin/raylib/libraylib.dll",
+        "64bit": "external/bin/raylib/libraylib.dll"
+    },
+	"linux": {
+		"32bit": "external/bin/raylib/libraylib.so",
+        "64bit": "external/bin/raylib/libraylib.so"
+    }
+}
