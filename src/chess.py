@@ -69,23 +69,24 @@ def main():
 
 	while not WindowShouldClose():
 		BeginDrawing()
-		
 		ClearBackground(RAYWHITE)
-
+		Color()
 		font_size = GRID_SIZE / 2
 		font_color = GRAY
-		for x in range(8):
-			padding_x = left + (GRID_SIZE - MeasureText("abcdefgh"[x], font_size)) / 2
-			padding_y = top + (GRID_SIZE - font_size) / 2
-			DrawText("abcdefgh"[x], padding_x + GRID_SIZE * x, padding_y - GRID_SIZE, font_size, font_color)
-			DrawText("abcdefgh"[x], padding_x + GRID_SIZE * x, padding_y + GRID_SIZE*8, font_size, font_color)
+		offside_color = font_color.rgba
+		offside_color.a //= 2
+		padding_y = top + (GRID_SIZE - font_size) / 2
+		for i in range(8):
+			width = MeasureText("abcdefgh"[x], font_size)
+			padding_x = left + (GRID_SIZE - width) / 2
 
-		for y in range(8):
-			padding_x = left + (GRID_SIZE - MeasureText("12345678"[x], font_size)) / 2
-			padding_y = top + (GRID_SIZE - font_size) / 2
+			DrawText("abcdefgh"[i], padding_x + GRID_SIZE*i, padding_y + GRID_SIZE*8, font_size, font_color)
+			DrawTextPro(GetFontDefault(), "abcdefgh"[i], Vector2(padding_x + GRID_SIZE*i, padding_y - GRID_SIZE), Vector2(width,font_size), 180, font_size, 0, offside_color)
 
-			DrawText("12345678"[y], padding_x - GRID_SIZE, padding_y + GRID_SIZE*y, font_size, font_color)
-			DrawText("12345678"[y], padding_x + GRID_SIZE*8, padding_y + GRID_SIZE*y, font_size, font_color)
+			width = MeasureText("12345678"[x], font_size)
+			padding_x = left + (GRID_SIZE - width) / 2
+			DrawText("12345678"[i], padding_x - GRID_SIZE, padding_y + GRID_SIZE*i, font_size, font_color)
+			DrawTextPro(GetFontDefault(), "12345678"[i], Vector2(padding_x + GRID_SIZE*8, padding_y + GRID_SIZE*i), Vector2(width,font_size), 180, font_size, 0, offside_color)
 
 		DrawRectangleLinesEx(Rectangle(left-2, top-2, GRID_SIZE*8 + 4, GRID_SIZE*8 + 4), 4, BLACK)
 		square_color = 0
