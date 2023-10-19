@@ -30,6 +30,7 @@ class ChessBoard:
 		
 		self.pieces = array("B", [0 for i in range(8 * 8)])
 		self.teams = array("B", [0 for i in range(8 * 8)])
+		self.piece_selected = None
 		self.center()
 		self.reset()
 		
@@ -54,13 +55,36 @@ class ChessBoard:
 						else: piece = Piece.KING
 				if piece != Piece.NONE:
 					index = y * 8 + x
-					if y < 4: self.teams[index] = Team.BLACK
+					if y > 4: self.teams[index] = Team.BLACK
 					self.pieces[index] = piece
 					piece = Piece.NONE
 	
 	def center(self):
 		self.x = (GetScreenWidth() - self.width) / 2
 		self.y = (GetScreenHeight() - self.height) / 2
+
+	def get_piece_at_screen_pos(self, pos):
+		result = -1
+
+		grid_pos = Vector2(
+			(pos.x - self.x) // self.grid_size,
+			(pos.y - self.y) // self.grid_size
+		)
+
+		index = grid_pos.y * self.BOARD_COLS + grid_pos.x
+		if index >= 0 and index < self.BOARD_COLS * self.BOARD_ROWS:
+			result = index
+
+		return result
+	
+	def update(self):
+		if IsMouseButtonPressed(0):
+			piece = self.get_piece_at_screen_pos(GetMousePosition())
+			if piece >= 0:
+				self.piece_selected = piece
+			# elif handle valid moves
+			else:
+				self.piece_selected = None
 	
 	def draw_board(self):
 		piece_labels = ["" for i in range(Piece.QUEEN.value + 1)]
@@ -89,9 +113,15 @@ class ChessBoard:
 					p_color_1 = self.colors[int(not team)].rgba
 					p_color_2 = self.colors[square_color].rgba
 					p_color_2.a = 0
+
+					if self.piece_selected == index:
+						DrawRectangle(draw_x, draw_y, self.grid_size, self.grid_size, GREEN)
 					
 					DrawCircleGradient(draw_x + self.grid_size/2, draw_y + self.grid_size/2, self.grid_size/1.5, p_color_1, p_color_2)
 					DrawText(piece_labels[piece], padding + draw_x, draw_y, self.grid_size, self.colors[team])
+
+					if self.piece_selected == index:
+						DrawRectangleLines(draw_x, draw_y, self.grid_size, self.grid_size, YELLOW)
 
 				draw_x += self.grid_size
 				index += 1
@@ -132,7 +162,9 @@ def main():
 
 	board = ChessBoard(GRID_SIZE)
 
-	while not WindowShouldClose():
+	while not WindowShouldClose():		
+		board.update()
+		
 		BeginDrawing()
 		ClearBackground(RAYWHITE)
 		
