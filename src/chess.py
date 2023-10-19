@@ -21,7 +21,7 @@ class ChessBoard:
 	BOARD_ROWS = 8
 	BOARD_COLS = 8
 
-	def __init__(self, grid_size, colors=(BLACK, WHITE)):
+	def __init__(self, grid_size, colors=(WHITE, BLACK)):
 		self.grid_size = grid_size
 		self.colors = colors
 
@@ -55,7 +55,7 @@ class ChessBoard:
 						else: piece = Piece.KING
 				if piece != Piece.NONE:
 					index = y * 8 + x
-					if y > 4: self.teams[index] = Team.BLACK
+					if y < 4: self.teams[index] = Team.BLACK
 					self.pieces[index] = piece
 					piece = Piece.NONE
 	
@@ -81,7 +81,9 @@ class ChessBoard:
 
 		return result
 
+
 	def get_valid_moves(self, index):
+# TO-DO: Castle for unmoved king/rooks
 		result = []
 
 		index = int(index)
@@ -93,64 +95,94 @@ class ChessBoard:
 		team = self.teams[index]
 		
 		moves = []
+		directions = []
+		limit = 1
+
 		match piece:
 			case Piece.PAWN:
 				first_row = False
-				direction = None
+				dir = None
 				if team == Team.WHITE:
-					direction = 1
-				else:
-					direction = -1
+					dir = -1
+					first_row = (grid_pos.y == 6)
+				else: 
+					dir = 1
+					first_row = (grid_pos.y == 1)
 
-				moves = [
-					Vector2(grid_pos.x, grid_pos.y+direction),
-					Vector2(grid_pos.x, grid_pos.y+direction*2),
-					Vector2(grid_pos.x+1, grid_pos.y+direction),
-					Vector2(grid_pos.x-1, grid_pos.y+direction),
-				]
-#				if not first_row: del moves[1]
+				for i in range(1, 2 + int(first_row)):
+					check_pos = Vector2(grid_pos.x, grid_pos.y + dir*i)
+					check_index = int(check_pos.y * self.BOARD_COLS + check_pos.x)
+					if self.pieces[check_index] == Piece.NONE:
+						moves.append(check_pos)
+					else: break
+
+				for i in range(-1, 2, 2):
+					check_pos = Vector2(grid_pos.x + i, grid_pos.y + dir)
+					if check_pos.x < 0 or check_pos.x >= self.BOARD_COLS:
+						continue
+					check_index = int(check_pos.y * self.BOARD_COLS + check_pos.x)
+					if self.pieces[check_index] > Piece.NONE and self.teams[check_index] != team:
+						moves.append(check_pos)
 
 			case Piece.ROOK:
-				for i in range(8):
-					moves.append(Vector2(grid_pos.x+i, grid_pos.y))
-					moves.append(Vector2(grid_pos.x-i, grid_pos.y))
-					moves.append(Vector2(grid_pos.x, grid_pos.y+i))
-					moves.append(Vector2(grid_pos.x, grid_pos.y-i))
-			
+				limit = 8
+				directions = [
+					Vector2(1,0),
+					Vector2(-1,0),
+					Vector2(0,1),
+					Vector2(0,-1),
+				]
+					
 			case Piece.BISHOP:
-				for i in range(8):
-					moves.append(Vector2(grid_pos.x+i, grid_pos.y+i))
-					moves.append(Vector2(grid_pos.x-i, grid_pos.y-i))
-					moves.append(Vector2(grid_pos.x+i, grid_pos.y-i))
-					moves.append(Vector2(grid_pos.x-i, grid_pos.y+i))
+				limit = 8
+				directions = [
+					Vector2(+1, +1),
+					Vector2(-1, -1),
+					Vector2(+1, -1),
+					Vector2(-1, +1),
+				]
 			
 			case Piece.KNIGHT:
 				for i in range(-1, 2, 2):
-					moves.append(Vector2(grid_pos.x+(2*i), grid_pos.y+(i)))
-					moves.append(Vector2(grid_pos.x+(i), grid_pos.y+(2*i)))
-					moves.append(Vector2(grid_pos.x+(2*i), grid_pos.y-(i)))
-					moves.append(Vector2(grid_pos.x-(i), grid_pos.y+(2*i)))
+					directions.append(Vector2( (i  ),  (2*i)))
+					directions.append(Vector2( (2*i),  (i  )))
+					directions.append(Vector2( (2*i), -(i  )))
+					directions.append(Vector2(-(i  ),  (2*i)))
 			
 			case Piece.KING:
 				for i in range(-1, 2, 2):
-					moves.append(Vector2(grid_pos.x+i, grid_pos.y+i))
-					moves.append(Vector2(grid_pos.x-i, grid_pos.y+i))
-					moves.append(Vector2(grid_pos.x+i, grid_pos.y))
-					moves.append(Vector2(grid_pos.x, grid_pos.y+i))
+					directions.append(Vector2( i, i))
+					directions.append(Vector2(-i, i))
+					directions.append(Vector2( i, 0))
+					directions.append(Vector2( 0, i))
 
 			case Piece.QUEEN:
-				for e in range(8):
-					for d in range(-1, 2, 2):
-						i = e*d
-						moves.append(Vector2(grid_pos.x+i, grid_pos.y+i))
-						moves.append(Vector2(grid_pos.x-i, grid_pos.y+i))
-						moves.append(Vector2(grid_pos.x+i, grid_pos.y))
-						moves.append(Vector2(grid_pos.x, grid_pos.y+i))
-					
+				limit = 8
+				for i in range(-1, 2, 2):
+					directions.append(Vector2( i, i))
+					directions.append(Vector2(-i, i))
+					directions.append(Vector2( i, 0))
+					directions.append(Vector2( 0, i))
 				
+		for i in range(1, limit+1):
+			for d in directions:
+				if d is None: continue
+
+				next = Vector2(grid_pos.x + d.x*i, grid_pos.y + d.y*i)
+				next_index = int(next.y * self.BOARD_COLS + next.x)
+
+				if 0 <= next_index < len(self.pieces):
+					if self.pieces[next_index] > Piece.NONE:
+						directions[directions.index(d)] = None
+						if self.teams[next_index] != team:
+							moves.append(next)
+					else:
+						moves.append(next)
+				else:
+					directions[directions.index(d)] = None
 
 		for m in moves:
-			if m.x >= 0 and m.x < self.BOARD_COLS and m.y >= 0 and m.y < self.BOARD_ROWS:
+			if (0 <= m.x < self.BOARD_COLS) and (0 <= m.y < self.BOARD_ROWS):
 				index = int(m.y * self.BOARD_COLS + m.x)
 				result.append(index)
 
@@ -248,6 +280,15 @@ def main():
 	InitWindow(SCREEN_W, SCREEN_H, "Net Chess")
 
 	board = ChessBoard(GRID_SIZE)
+
+# Clear the board to test individual piece moves
+#	for i in range(len(board.pieces)):
+#		board.pieces[i] = 0
+#		board.teams[i] = 0
+
+#	test_index = 4 * board.BOARD_COLS + 4
+#	board.pieces[test_index] = Piece.QUEEN
+#	board.teams[test_index] = Team.WHITE
 
 	while not WindowShouldClose():		
 		board.update()
