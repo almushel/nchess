@@ -63,23 +63,103 @@ class ChessBoard:
 		self.x = (GetScreenWidth() - self.width) / 2
 		self.y = (GetScreenHeight() - self.height) / 2
 
-	def get_piece_at_screen_pos(self, pos):
-		result = -1
-
-		grid_pos = Vector2(
+	def screen_to_board_pos(self, pos):
+		result = Vector2(
 			(pos.x - self.x) // self.grid_size,
 			(pos.y - self.y) // self.grid_size
 		)
+		return result
+	
+	def piece_index_at_screen_pos(self, pos):
+		result = -1
+
+		grid_pos = self.screen_to_board_pos(pos)
 
 		index = grid_pos.y * self.BOARD_COLS + grid_pos.x
 		if index >= 0 and index < self.BOARD_COLS * self.BOARD_ROWS:
 			result = index
 
 		return result
-	
+
+	def get_valid_moves(self, index):
+		result = []
+
+		index = int(index)
+		grid_pos = Vector2(
+			index % self.BOARD_COLS,
+			(index - (index % self.BOARD_COLS)) // self.BOARD_ROWS
+		)
+		piece = self.pieces[index]
+		team = self.teams[index]
+		
+		moves = []
+		match piece:
+			case Piece.PAWN:
+				first_row = False
+				direction = None
+				if team == Team.WHITE:
+					direction = 1
+				else:
+					direction = -1
+
+				moves = [
+					Vector2(grid_pos.x, grid_pos.y+direction),
+					Vector2(grid_pos.x, grid_pos.y+direction*2),
+					Vector2(grid_pos.x+1, grid_pos.y+direction),
+					Vector2(grid_pos.x-1, grid_pos.y+direction),
+				]
+#				if not first_row: del moves[1]
+
+			case Piece.ROOK:
+				for i in range(8):
+					moves.append(Vector2(grid_pos.x+i, grid_pos.y))
+					moves.append(Vector2(grid_pos.x-i, grid_pos.y))
+					moves.append(Vector2(grid_pos.x, grid_pos.y+i))
+					moves.append(Vector2(grid_pos.x, grid_pos.y-i))
+			
+			case Piece.BISHOP:
+				for i in range(8):
+					moves.append(Vector2(grid_pos.x+i, grid_pos.y+i))
+					moves.append(Vector2(grid_pos.x-i, grid_pos.y-i))
+					moves.append(Vector2(grid_pos.x+i, grid_pos.y-i))
+					moves.append(Vector2(grid_pos.x-i, grid_pos.y+i))
+			
+			case Piece.KNIGHT:
+				for i in range(-1, 2, 2):
+					moves.append(Vector2(grid_pos.x+(2*i), grid_pos.y+(i)))
+					moves.append(Vector2(grid_pos.x+(i), grid_pos.y+(2*i)))
+					moves.append(Vector2(grid_pos.x+(2*i), grid_pos.y-(i)))
+					moves.append(Vector2(grid_pos.x-(i), grid_pos.y+(2*i)))
+			
+			case Piece.KING:
+				for i in range(-1, 2, 2):
+					moves.append(Vector2(grid_pos.x+i, grid_pos.y+i))
+					moves.append(Vector2(grid_pos.x-i, grid_pos.y+i))
+					moves.append(Vector2(grid_pos.x+i, grid_pos.y))
+					moves.append(Vector2(grid_pos.x, grid_pos.y+i))
+
+			case Piece.QUEEN:
+				for e in range(8):
+					for d in range(-1, 2, 2):
+						i = e*d
+						moves.append(Vector2(grid_pos.x+i, grid_pos.y+i))
+						moves.append(Vector2(grid_pos.x-i, grid_pos.y+i))
+						moves.append(Vector2(grid_pos.x+i, grid_pos.y))
+						moves.append(Vector2(grid_pos.x, grid_pos.y+i))
+					
+				
+
+		for m in moves:
+			if m.x >= 0 and m.x < self.BOARD_COLS and m.y >= 0 and m.y < self.BOARD_ROWS:
+				index = int(m.y * self.BOARD_COLS + m.x)
+				result.append(index)
+
+		return result
+				
+
 	def update(self):
 		if IsMouseButtonPressed(0):
-			piece = self.get_piece_at_screen_pos(GetMousePosition())
+			piece = self.piece_index_at_screen_pos(GetMousePosition())
 			if piece >= 0:
 				self.piece_selected = piece
 			# elif handle valid moves
@@ -100,12 +180,19 @@ class ChessBoard:
 
 		DrawRectangleLinesEx(Rectangle(draw_x-2, draw_y-2, self.width+4, self.height+4), 4, BLACK)
 		
-		index = 0
+		index = int(0)
 		square_color = 0
+		if self.piece_selected is not None:
+			moves = self.get_valid_moves(self.piece_selected)
+		else:
+			moves = []
 		for y in range(8):
 			for x in range(8):
 
 				DrawRectangle(draw_x, draw_y, self.grid_size, self.grid_size, self.colors[square_color])
+				if index in moves:
+					DrawRectangle(draw_x, draw_y, self.grid_size, self.grid_size, YELLOW)
+				
 				if self.pieces[index] != Piece.NONE:
 					team = self.teams[index]
 					piece = self.pieces[index]
@@ -144,10 +231,10 @@ class ChessBoard:
 			DrawText("abcdefgh"[i], padding_x + self.grid_size*i, padding_y + self.height, font_size, font_color)
 			DrawTextPro(GetFontDefault(), "abcdefgh"[i], Vector2(padding_x + self.grid_size*i, padding_y - self.grid_size), Vector2(width,font_size), 180, font_size, 0, offside_color)
 
-			width = MeasureText("12345678"[i], font_size)
+			width = MeasureText("87654321"[i], font_size)
 			padding_x = self.x + (self.grid_size - width) / 2
-			DrawText("12345678"[i], padding_x - self.grid_size, padding_y + self.grid_size*i, font_size, font_color)
-			DrawTextPro(GetFontDefault(), "12345678"[i], Vector2(padding_x + self.width, padding_y + self.grid_size*i), Vector2(width,font_size), 180, font_size, 0, offside_color)
+			DrawText("87654321"[i], padding_x - self.grid_size, padding_y + self.grid_size*i, font_size, font_color)
+			DrawTextPro(GetFontDefault(), "87654321"[i], Vector2(padding_x + self.width, padding_y + self.grid_size*i), Vector2(width,font_size), 180, font_size, 0, offside_color)
 
 	def draw(self):
 		self.draw_board()
