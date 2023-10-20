@@ -75,14 +75,18 @@ class ChessBoard:
 
 		grid_pos = self.screen_to_board_pos(pos)
 
-		index = grid_pos.y * self.BOARD_COLS + grid_pos.x
-		if index >= 0 and index < self.BOARD_COLS * self.BOARD_ROWS:
-			result = index
+		if (0 <= grid_pos.x < self.BOARD_COLS) and (0 <= grid_pos.y < self.BOARD_ROWS):
+			index = grid_pos.y * self.BOARD_COLS + grid_pos.x
+			if index >= 0 and index < self.BOARD_COLS * self.BOARD_ROWS:
+				result = index
 
-		return result
+		return int(result)
 
 
 	def get_valid_moves(self, index):
+		diagonals = [Vector2(+1, +1), Vector2(-1, -1), Vector2(+1, -1), Vector2(-1, +1) ]
+		orthogonals = [ Vector2(1,0), Vector2(-1,0), Vector2(0,1), Vector2(0,-1) ]
+
 # TO-DO: Castle for unmoved king/rooks
 		result = []
 
@@ -126,21 +130,11 @@ class ChessBoard:
 
 			case Piece.ROOK:
 				limit = 8
-				directions = [
-					Vector2(1,0),
-					Vector2(-1,0),
-					Vector2(0,1),
-					Vector2(0,-1),
-				]
+				directions = orthogonals
 					
 			case Piece.BISHOP:
 				limit = 8
-				directions = [
-					Vector2(+1, +1),
-					Vector2(-1, -1),
-					Vector2(+1, -1),
-					Vector2(-1, +1),
-				]
+				directions = diagonals
 			
 			case Piece.KNIGHT:
 				for i in range(-1, 2, 2):
@@ -150,19 +144,11 @@ class ChessBoard:
 					directions.append(Vector2(-(i  ),  (2*i)))
 			
 			case Piece.KING:
-				for i in range(-1, 2, 2):
-					directions.append(Vector2( i, i))
-					directions.append(Vector2(-i, i))
-					directions.append(Vector2( i, 0))
-					directions.append(Vector2( 0, i))
+				directions = orthogonals + diagonals
 
 			case Piece.QUEEN:
 				limit = 8
-				for i in range(-1, 2, 2):
-					directions.append(Vector2( i, i))
-					directions.append(Vector2(-i, i))
-					directions.append(Vector2( i, 0))
-					directions.append(Vector2( 0, i))
+				directions = orthogonals + diagonals
 				
 		for i in range(1, limit+1):
 			for d in directions:
@@ -192,12 +178,22 @@ class ChessBoard:
 	def update(self):
 		if IsMouseButtonPressed(0):
 			piece = self.piece_index_at_screen_pos(GetMousePosition())
-			if piece >= 0:
+
+			if self.piece_selected is not None and self.piece_selected != piece:
+				moves = self.get_valid_moves(self.piece_selected)
+				if piece in moves:
+					self.pieces[piece] = self.pieces[self.piece_selected]
+					self.teams[piece] = self.teams[self.piece_selected]
+
+					self.pieces[self.piece_selected] = Piece.NONE
+					self.piece_selected = None
+				elif piece >= 0:
+					self.piece_selected = piece
+				else:
+					self.piece_selected = None
+			elif piece >= 0:
 				self.piece_selected = piece
-			# elif handle valid moves
-			else:
-				self.piece_selected = None
-	
+
 	def draw_board(self):
 		piece_labels = ["" for i in range(Piece.QUEEN.value + 1)]
 		piece_labels[Piece.PAWN] 	= "P"
