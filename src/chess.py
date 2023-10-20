@@ -21,7 +21,8 @@ class ChessBoard:
 	BOARD_ROWS = 8
 	BOARD_COLS = 8
 
-	def __init__(self, grid_size, colors=(WHITE, BLACK)):
+	def __init__(self, position, grid_size, colors=(WHITE, BLACK)):
+		self.position = position
 		self.grid_size = grid_size
 		self.colors = colors
 
@@ -31,9 +32,17 @@ class ChessBoard:
 		self.pieces = array("B", [0 for i in range(8 * 8)])
 		self.teams = array("B", [0 for i in range(8 * 8)])
 		self.piece_selected = None
-		self.center()
+		self.piece_rotation = 0
 		self.reset()
 		
+	@property
+	def x(self):
+		return self.position.x
+	
+	@property
+	def y(self):
+		return self.position.y
+
 	def reset(self):
 		piece = Piece.NONE
 		for y in range(8):
@@ -58,22 +67,18 @@ class ChessBoard:
 					if y < 4: self.teams[index] = Team.BLACK
 					self.pieces[index] = piece
 					piece = Piece.NONE
-	
-	def center(self):
-		self.x = (GetScreenWidth() - self.width) / 2
-		self.y = (GetScreenHeight() - self.height) / 2
 
-	def screen_to_board_pos(self, pos):
+	def world_to_board_pos(self, pos):
 		result = Vector2(
 			(pos.x - self.x) // self.grid_size,
 			(pos.y - self.y) // self.grid_size
 		)
 		return result
 	
-	def piece_index_at_screen_pos(self, pos):
+	def piece_index_at_world_pos(self, pos):
 		result = -1
 
-		grid_pos = self.screen_to_board_pos(pos)
+		grid_pos = self.world_to_board_pos(pos)
 
 		if (0 <= grid_pos.x < self.BOARD_COLS) and (0 <= grid_pos.y < self.BOARD_ROWS):
 			index = grid_pos.y * self.BOARD_COLS + grid_pos.x
@@ -175,25 +180,6 @@ class ChessBoard:
 		return result
 				
 
-	def update(self):
-		if IsMouseButtonPressed(0):
-			piece = self.piece_index_at_screen_pos(GetMousePosition())
-
-			if self.piece_selected is not None and self.piece_selected != piece:
-				moves = self.get_valid_moves(self.piece_selected)
-				if piece in moves:
-					self.pieces[piece] = self.pieces[self.piece_selected]
-					self.teams[piece] = self.teams[self.piece_selected]
-
-					self.pieces[self.piece_selected] = Piece.NONE
-					self.piece_selected = None
-				elif piece >= 0:
-					self.piece_selected = piece
-				else:
-					self.piece_selected = None
-			elif piece >= 0:
-				self.piece_selected = piece
-
 	def draw_board(self):
 		piece_labels = ["" for i in range(Piece.QUEEN.value + 1)]
 		piece_labels[Piece.PAWN] 	= "P"
@@ -233,7 +219,19 @@ class ChessBoard:
 						DrawRectangle(draw_x, draw_y, self.grid_size, self.grid_size, GREEN)
 					
 					DrawCircleGradient(draw_x + self.grid_size/2, draw_y + self.grid_size/2, self.grid_size/1.5, p_color_1, p_color_2)
-					DrawText(piece_labels[piece], padding + draw_x, draw_y, self.grid_size, self.colors[team])
+
+					if self.piece_rotation:
+						offset = Vector2(MeasureText(piece_labels[piece], self.grid_size), self.grid_size)
+					else:
+						offset = Vector2(0,0)
+
+					DrawTextPro(
+						GetFontDefault(), piece_labels[piece], 
+				 		Vector2(padding + draw_x, draw_y), offset, 
+						self.piece_rotation, self.grid_size, 0, 
+						self.colors[team]
+						)
+					#DrawText(piece_labels[piece], padding + draw_x, draw_y, self.grid_size, self.colors[team])
 
 					if self.piece_selected == index:
 						DrawRectangleLines(draw_x, draw_y, self.grid_size, self.grid_size, YELLOW)
@@ -275,7 +273,11 @@ def main():
 
 	InitWindow(SCREEN_W, SCREEN_H, "Net Chess")
 
-	board = ChessBoard(GRID_SIZE)
+	board = ChessBoard(Vector2(0,0), GRID_SIZE)
+	camera = Camera2D(Vector2(GetScreenWidth()/2, GetScreenHeight()/2),Vector2(board.x + board.width/2,board.y+board.height/2), 0, 1)
+
+	view = Team.WHITE
+	player_turn = Team.WHITE
 
 # Clear the board to test individual piece moves
 #	for i in range(len(board.pieces)):
@@ -287,12 +289,49 @@ def main():
 #	board.teams[test_index] = Team.WHITE
 
 	while not WindowShouldClose():		
-		board.update()
+		if IsWindowResized():
+			camera.offset.x, camera.offset.y = GetScreenWidth()/2, GetScreenHeight()/2
+
+		view = Team.BLACK
+		rotation = (view == Team.BLACK) * 180
+		camera.rotation = rotation
+		board.piece_rotation = rotation
+		
+		if IsMouseButtonPressed(0):
+			piece = board.piece_index_at_world_pos(
+				GetScreenToWorld2D(GetMousePosition(), camera)
+			)
+
+			if board.piece_selected is not None and board.piece_selected != piece:
+				moves = board.get_valid_moves(board.piece_selected)
+				if piece in moves:
+					board.pieces[piece] = board.pieces[board.piece_selected]
+					board.teams[piece] = board.teams[board.piece_selected]
+
+					board.pieces[board.piece_selected] = Piece.NONE
+					board.piece_selected = None
+
+					player_turn = int(not player_turn)
+
+				elif piece >= 0 and board.teams[piece] == player_turn:
+					board.piece_selected = piece
+				else:
+					board.piece_selected = None
+
+			elif piece >= 0 and board.teams[piece] == player_turn:
+				board.piece_selected = piece
 		
 		BeginDrawing()
 		ClearBackground(RAYWHITE)
 		
+		BeginMode2D(camera)
 		board.draw()
+		EndMode2D()
+
+		team_names = ("White", "Black")
+		font_size = 24
+		width = MeasureText(f"{team_names[player_turn]} player's turn", 24)
+		DrawText(f"{team_names[player_turn]} player's turn", GetScreenWidth()/2 - width/2, font_size, font_size, BLACK)
 
 		EndDrawing()
 
