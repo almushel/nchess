@@ -57,11 +57,9 @@ class ChessBoard:
 					if x == 2 or x == 5:
 						piece = Piece.BISHOP
 					if x == 3:
-						if y == 0: piece = Piece.KING
-						else: piece = Piece.QUEEN
+						piece = Piece.QUEEN
 					if x == 4:
-						if y == 0: piece = Piece.QUEEN
-						else: piece = Piece.KING
+						piece = Piece.KING
 				if piece != Piece.NONE:
 					index = y * 8 + x
 					if y < 4: self.teams[index] = Team.BLACK
@@ -87,6 +85,54 @@ class ChessBoard:
 
 		return int(result)
 
+	def is_king_in_check(self, team):
+		check_pieces = []
+		king = -1
+		for pi in range(len(self.pieces)):
+			if self.pieces[pi] == Piece.KING and self.teams[pi] == team:
+				king = pi
+				break
+		
+		if king < 0:
+			raise Exception("King does not exist for team {team}???")
+		
+		grid_pos = Vector2(
+			king % self.BOARD_COLS,
+			(king - (king % self.BOARD_COLS)) // self.BOARD_ROWS
+		)
+
+		check_dirs = []
+		for i in range(-1, 2, 1):
+			check_dirs.append(	(Vector2(i, -1), 8))
+			check_dirs.append(	(Vector2(i,  0), 8))
+			check_dirs.append(	(Vector2(i,  1), 8))
+
+		# Knight moves
+		for i in range(-1, 2, 2):
+			check_dirs.append( ( Vector2( i  ,  2*i), 1) )
+			check_dirs.append( ( Vector2( 2*i,  i  ), 1) )
+			check_dirs.append( ( Vector2( 2*i, -i  ), 1) )
+			check_dirs.append( ( Vector2(-i  ,  2*i), 1) )
+
+		for d in check_dirs:
+			for i in range(1, d[1]+1):
+				offset = Vector2(d[0].x * i, d[0].y * i)
+				check_pos = Vector2(grid_pos.x + offset.x, grid_pos.y + offset.y)
+				if check_pos.x < 0 or check_pos.x >= self.BOARD_COLS: break 
+				if check_pos.y < 0 or check_pos.y >= self.BOARD_ROWS: break
+				
+				check_index = int(check_pos.y * self.BOARD_COLS + check_pos.x)
+				if self.pieces[check_index] > Piece.NONE:
+					if self.teams[check_index] != team:
+						check_pieces.append(check_index)
+					else:
+						break
+
+		for piece in check_pieces:
+			if king in self.get_valid_moves(piece):
+				return True
+		
+		return False
 
 	def get_valid_moves(self, index):
 		diagonals = [Vector2(+1, +1), Vector2(-1, -1), Vector2(+1, -1), Vector2(-1, +1) ]
@@ -155,22 +201,20 @@ class ChessBoard:
 				limit = 8
 				directions = orthogonals + diagonals
 				
-		for i in range(1, limit+1):
-			for d in directions:
-				if d is None: continue
-
+		for d in directions:
+			for i in range(1, limit+1):
 				next = Vector2(grid_pos.x + d.x*i, grid_pos.y + d.y*i)
 				next_index = int(next.y * self.BOARD_COLS + next.x)
 
 				if 0 <= next_index < len(self.pieces):
 					if self.pieces[next_index] > Piece.NONE:
-						directions[directions.index(d)] = None
 						if self.teams[next_index] != team:
 							moves.append(next)
+						break
 					else:
 						moves.append(next)
 				else:
-					directions[directions.index(d)] = None
+					break
 
 		for m in moves:
 			if (0 <= m.x < self.BOARD_COLS) and (0 <= m.y < self.BOARD_ROWS):
@@ -278,6 +322,7 @@ def main():
 
 	view = Team.WHITE
 	player_turn = Team.WHITE
+	moves = [[] for i in range(len(board.pieces))]
 
 # Clear the board to test individual piece moves
 #	for i in range(len(board.pieces)):
@@ -292,10 +337,15 @@ def main():
 		if IsWindowResized():
 			camera.offset.x, camera.offset.y = GetScreenWidth()/2, GetScreenHeight()/2
 
-		view = Team.BLACK
+		view = Team.WHITE
 		rotation = (view == Team.BLACK) * 180
 		camera.rotation = rotation
 		board.piece_rotation = rotation
+
+		for i in range(len(moves)):
+			moves[i] = board.get_valid_moves(i)
+
+		check = board.is_king_in_check(player_turn)
 		
 		if IsMouseButtonPressed(0):
 			piece = board.piece_index_at_world_pos(
@@ -303,8 +353,8 @@ def main():
 			)
 
 			if board.piece_selected is not None and board.piece_selected != piece:
-				moves = board.get_valid_moves(board.piece_selected)
-				if piece in moves:
+				selected_moves = moves[board.piece_selected]
+				if piece in selected_moves:
 					board.pieces[piece] = board.pieces[board.piece_selected]
 					board.teams[piece] = board.teams[board.piece_selected]
 
@@ -332,6 +382,10 @@ def main():
 		font_size = 24
 		width = MeasureText(f"{team_names[player_turn]} player's turn", 24)
 		DrawText(f"{team_names[player_turn]} player's turn", GetScreenWidth()/2 - width/2, font_size, font_size, BLACK)
+
+		if check:
+			width = MeasureText("Check!", 24)
+			DrawText("Check", GetScreenWidth()/2 - width/2, GetScreenHeight()-font_size, font_size, RED)
 
 		EndDrawing()
 
