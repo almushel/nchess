@@ -164,6 +164,7 @@ class ChessBoard:
 					dir = 1
 					first_row = (grid_pos.y == 1)
 
+				# Pawns processed separately, because they have completely unique move/capture rules
 				for i in range(1, 2 + int(first_row)):
 					check_pos = Vector2(grid_pos.x, grid_pos.y + dir*i)
 					check_index = int(check_pos.y * self.BOARD_COLS + check_pos.x)
@@ -218,9 +219,19 @@ class ChessBoard:
 
 		for m in moves:
 			if (0 <= m.x < self.BOARD_COLS) and (0 <= m.y < self.BOARD_ROWS):
-				index = int(m.y * self.BOARD_COLS + m.x)
-				result.append(index)
+				move_index = int(m.y * self.BOARD_COLS + m.x)
 
+				undo = (self.pieces[move_index], self.teams[move_index])
+
+				self.pieces[move_index], self.teams[move_index] = piece, team
+				self.pieces[index], self.teams[index] = Piece.NONE, Team.WHITE
+
+				if not self.is_king_in_check(team):
+					result.append(move_index)
+
+				self.pieces[move_index], self.teams[move_index] = undo[0], undo[1]
+				self.pieces[index], self.teams[index] = piece, team
+				
 		return result
 				
 
@@ -346,6 +357,12 @@ def main():
 			moves[i] = board.get_valid_moves(i)
 
 		check = board.is_king_in_check(player_turn)
+		mate = True
+
+		for i in range(len(board.pieces)):
+			if board.teams[i] == player_turn and len(moves[i]): 
+				mate = False
+				break
 		
 		if IsMouseButtonPressed(0):
 			piece = board.piece_index_at_world_pos(
@@ -383,9 +400,15 @@ def main():
 		width = MeasureText(f"{team_names[player_turn]} player's turn", 24)
 		DrawText(f"{team_names[player_turn]} player's turn", GetScreenWidth()/2 - width/2, font_size, font_size, BLACK)
 
-		if check:
+		if check and mate:
+			width = MeasureText("Checkmate!!!", 24)
+			DrawText("Checkmate!!!", GetScreenWidth()/2 - width/2, GetScreenHeight()-font_size, font_size, RED)			
+		elif check:
 			width = MeasureText("Check!", 24)
-			DrawText("Check", GetScreenWidth()/2 - width/2, GetScreenHeight()-font_size, font_size, RED)
+			DrawText("Check!", GetScreenWidth()/2 - width/2, GetScreenHeight()-font_size, font_size, RED)
+		elif mate:
+			width = MeasureText("Draw!", 24)
+			DrawText("Draw!", GetScreenWidth()/2 - width/2, GetScreenHeight()-font_size, font_size, ORANGE)
 
 		EndDrawing()
 
