@@ -1,4 +1,5 @@
 from raylib import *
+from math import *
 from enum import IntEnum, auto, unique
 from array import array
 
@@ -20,6 +21,7 @@ class Team(IntEnum):
 class ChessBoard:
 	BOARD_ROWS = 8
 	BOARD_COLS = 8
+	PAWN_DIRS = (1, -1)
 
 	def __init__(self, position, grid_size, colors=(WHITE, BLACK)):
 		self.position = position
@@ -57,12 +59,12 @@ class ChessBoard:
 					if x == 2 or x == 5:
 						piece = Piece.BISHOP
 					if x == 3:
-						piece = Piece.QUEEN
-					if x == 4:
 						piece = Piece.KING
+					if x == 4:
+						piece = Piece.QUEEN
 				if piece != Piece.NONE:
 					index = y * 8 + x
-					if y < 4: self.teams[index] = Team.BLACK
+					if y > 4: self.teams[index] = Team.BLACK
 					self.pieces[index] = piece
 					piece = Piece.NONE
 
@@ -86,15 +88,13 @@ class ChessBoard:
 		return int(result)
 
 	def is_king_in_check(self, team):
-		check_pieces = []
 		king = -1
 		for pi in range(len(self.pieces)):
 			if self.pieces[pi] == Piece.KING and self.teams[pi] == team:
 				king = pi
 				break
 		
-		if king < 0:
-			raise Exception("King does not exist for team {team}???")
+		if king < 0: return False
 		
 		grid_pos = Vector2(
 			king % self.BOARD_COLS,
@@ -108,11 +108,13 @@ class ChessBoard:
 			check_dirs.append(	(Vector2(i,  1), 8))
 
 		# Knight moves
+		knight_moves = []
 		for i in range(-1, 2, 2):
-			check_dirs.append( ( Vector2( i  ,  2*i), 1) )
-			check_dirs.append( ( Vector2( 2*i,  i  ), 1) )
-			check_dirs.append( ( Vector2( 2*i, -i  ), 1) )
-			check_dirs.append( ( Vector2(-i  ,  2*i), 1) )
+			knight_moves.append( ( Vector2( i  ,  2*i), 1) )
+			knight_moves.append( ( Vector2( 2*i,  i  ), 1) )
+			knight_moves.append( ( Vector2( 2*i, -i  ), 1) )
+			knight_moves.append( ( Vector2(-i  ,  2*i), 1) )
+		check_dirs += knight_moves
 
 		for d in check_dirs:
 			for i in range(1, d[1]+1):
@@ -122,16 +124,35 @@ class ChessBoard:
 				if check_pos.y < 0 or check_pos.y >= self.BOARD_ROWS: break
 				
 				check_index = int(check_pos.y * self.BOARD_COLS + check_pos.x)
-				if self.pieces[check_index] > Piece.NONE:
-					if self.teams[check_index] != team:
-						check_pieces.append(check_index)
-					else:
-						break
-
-		for piece in check_pieces:
-			if king in self.get_valid_moves(piece):
-				return True
-		
+				if self.teams[check_index] != team:
+					direction = Vector2(
+						int(grid_pos.x - check_pos.x),
+						int(grid_pos.y - check_pos.y),
+					)
+					match self.pieces[check_index]:
+						case Piece.KNIGHT:
+							if d in knight_moves:
+								return True
+						case Piece.QUEEN:
+							if d not in knight_moves:
+								return True
+						case Piece.BISHOP:
+							if direction.x != 0 and direction.y != 0:
+								return True		
+						case Piece.ROOK:
+							if (direction.x != 0 and direction.y == 0) or (direction.y != 0 and direction.x == 0):
+								return True
+						case Piece.KING:
+							if abs(direction.x) <= 1 and abs(direction.y) <= 1:
+								return True
+						case Piece.PAWN:
+							if abs(direction.x) <= 1 and abs(direction.y) <= 1:
+								if direction.y == self.PAWN_DIRS[not team]:
+									if direction.x != 0:
+										return True
+				# Even if the piece doesn't put the king in check, the path is blocked
+				if self.pieces[check_index] > 0:
+					break
 		return False
 
 	def get_valid_moves(self, index):
@@ -156,24 +177,21 @@ class ChessBoard:
 		match piece:
 			case Piece.PAWN:
 				first_row = False
-				dir = None
 				if team == Team.WHITE:
-					dir = -1
-					first_row = (grid_pos.y == 6)
-				else: 
-					dir = 1
 					first_row = (grid_pos.y == 1)
+				else: 
+					first_row = (grid_pos.y == 6)
 
 				# Pawns processed separately, because they have completely unique move/capture rules
 				for i in range(1, 2 + int(first_row)):
-					check_pos = Vector2(grid_pos.x, grid_pos.y + dir*i)
+					check_pos = Vector2(grid_pos.x, grid_pos.y + self.PAWN_DIRS[team]*i)
 					check_index = int(check_pos.y * self.BOARD_COLS + check_pos.x)
 					if self.pieces[check_index] == Piece.NONE:
 						moves.append(check_pos)
 					else: break
 
 				for i in range(-1, 2, 2):
-					check_pos = Vector2(grid_pos.x + i, grid_pos.y + dir)
+					check_pos = Vector2(grid_pos.x + i, grid_pos.y + self.PAWN_DIRS[team])
 					if check_pos.x < 0 or check_pos.x >= self.BOARD_COLS:
 						continue
 					check_index = int(check_pos.y * self.BOARD_COLS + check_pos.x)
@@ -312,10 +330,10 @@ class ChessBoard:
 			DrawText("abcdefgh"[i], padding_x + self.grid_size*i, padding_y + self.height, font_size, font_color)
 			DrawTextPro(GetFontDefault(), "abcdefgh"[i], Vector2(padding_x + self.grid_size*i, padding_y - self.grid_size), Vector2(width,font_size), 180, font_size, 0, offside_color)
 
-			width = MeasureText("87654321"[i], font_size)
+			width = MeasureText("12345678"[i], font_size)
 			padding_x = self.x + (self.grid_size - width) / 2
-			DrawText("87654321"[i], padding_x - self.grid_size, padding_y + self.grid_size*i, font_size, font_color)
-			DrawTextPro(GetFontDefault(), "87654321"[i], Vector2(padding_x + self.width, padding_y + self.grid_size*i), Vector2(width,font_size), 180, font_size, 0, offside_color)
+			DrawText("12345678"[i], padding_x - self.grid_size, padding_y + self.grid_size*i, font_size, font_color)
+			DrawTextPro(GetFontDefault(), "12345678"[i], Vector2(padding_x + self.width, padding_y + self.grid_size*i), Vector2(width,font_size), 180, font_size, 0, offside_color)
 
 	def draw(self):
 		self.draw_board()
@@ -349,7 +367,7 @@ def main():
 			camera.offset.x, camera.offset.y = GetScreenWidth()/2, GetScreenHeight()/2
 
 		view = Team.WHITE
-		rotation = (view == Team.BLACK) * 180
+		rotation = (view == Team.WHITE) * 180
 		camera.rotation = rotation
 		board.piece_rotation = rotation
 
