@@ -35,6 +35,9 @@ class ChessBoard:
 		self.teams = array("B", [0 for i in range(8 * 8)])
 		self.piece_selected = None
 		self.piece_rotation = 0
+
+		self.rooks_moved = [[False, False] for i in range(Team.BLACK+1)]
+		self.kings_moved = [False for i in range(Team.BLACK+1)]
 		self.reset()
 		
 	@property
@@ -67,6 +70,9 @@ class ChessBoard:
 					if y > 4: self.teams[index] = Team.BLACK
 					self.pieces[index] = piece
 					piece = Piece.NONE
+		
+		self.rooks_moved = [[False, False] for i in range(Team.BLACK+1)]
+		self.kings_moved = [False for i in range(Team.BLACK+1)]
 
 	def world_to_board_pos(self, pos):
 		result = Vector2(
@@ -125,10 +131,6 @@ class ChessBoard:
 				
 				check_index = int(check_pos.y * self.BOARD_COLS + check_pos.x)
 				if self.teams[check_index] != team:
-					direction = Vector2(
-						int(grid_pos.x - check_pos.x),
-						int(grid_pos.y - check_pos.y),
-					)
 					match self.pieces[check_index]:
 						case Piece.KNIGHT:
 							if d in knight_moves:
@@ -137,18 +139,18 @@ class ChessBoard:
 							if d not in knight_moves:
 								return True
 						case Piece.BISHOP:
-							if direction.x != 0 and direction.y != 0:
+							if offset.x != 0 and offset.y != 0:
 								return True		
 						case Piece.ROOK:
-							if (direction.x != 0 and direction.y == 0) or (direction.y != 0 and direction.x == 0):
+							if (offset.x != 0 and offset.y == 0) or (offset.y != 0 and offset.x == 0):
 								return True
 						case Piece.KING:
-							if abs(direction.x) <= 1 and abs(direction.y) <= 1:
+							if abs(offset.x) <= 1 and abs(offset.y) <= 1:
 								return True
 						case Piece.PAWN:
-							if abs(direction.x) <= 1 and abs(direction.y) <= 1:
-								if direction.y == self.PAWN_DIRS[not team]:
-									if direction.x != 0:
+							if abs(offset.x) <= 1 and abs(offset.y) <= 1:
+								if offset.y == self.PAWN_DIRS[not team]:
+									if offset.x != 0:
 										return True
 				# Even if the piece doesn't put the king in check, the path is blocked
 				if self.pieces[check_index] > 0:
@@ -215,6 +217,14 @@ class ChessBoard:
 			
 			case Piece.KING:
 				directions = orthogonals + diagonals
+				if not self.kings_moved[team]:
+					for i in range(-1, 2, 2):
+						rook_index = index+i
+						if not self.rooks_moved[team][int(i > 0)]:
+							while (0 <= rook_index+1 < len(self.pieces)) and self.pieces[rook_index] == Piece.NONE:
+								rook_index += i
+							if self.pieces[rook_index] == Piece.ROOK:
+								result.append(index+(2*i))			
 
 			case Piece.QUEEN:
 				limit = 8
@@ -304,7 +314,6 @@ class ChessBoard:
 						self.piece_rotation, self.grid_size, 0, 
 						self.colors[team]
 						)
-					#DrawText(piece_labels[piece], padding + draw_x, draw_y, self.grid_size, self.colors[team])
 
 					if self.piece_selected == index:
 						DrawRectangleLines(draw_x, draw_y, self.grid_size, self.grid_size, YELLOW)
@@ -327,17 +336,35 @@ class ChessBoard:
 			width = MeasureText("abcdefgh"[i], font_size)
 			padding_x = self.x + (self.grid_size - width) / 2
 
-			DrawText("abcdefgh"[i], padding_x + self.grid_size*i, padding_y + self.height, font_size, font_color)
-			DrawTextPro(GetFontDefault(), "abcdefgh"[i], Vector2(padding_x + self.grid_size*i, padding_y - self.grid_size), Vector2(width,font_size), 180, font_size, 0, offside_color)
+			# NOTE: offside_color current assumes white side view
+			DrawText("abcdefgh"[7-i], padding_x + self.grid_size*i, padding_y + self.height, font_size, offside_color)
+			DrawTextPro(GetFontDefault(), "abcdefgh"[7-i], Vector2(padding_x + self.grid_size*i, padding_y - self.grid_size), Vector2(width,font_size), 180, font_size, 0, font_color)
 
 			width = MeasureText("12345678"[i], font_size)
 			padding_x = self.x + (self.grid_size - width) / 2
-			DrawText("12345678"[i], padding_x - self.grid_size, padding_y + self.grid_size*i, font_size, font_color)
-			DrawTextPro(GetFontDefault(), "12345678"[i], Vector2(padding_x + self.width, padding_y + self.grid_size*i), Vector2(width,font_size), 180, font_size, 0, offside_color)
+			DrawText("12345678"[i], padding_x - self.grid_size, padding_y + self.grid_size*i, font_size, offside_color)
+			DrawTextPro(GetFontDefault(), "12345678"[i], Vector2(padding_x + self.width, padding_y + self.grid_size*i), Vector2(width,font_size), 180, font_size, 0, font_color)
 
 	def draw(self):
 		self.draw_board()
 		self.draw_labels()
+
+def debug_reset(board):
+# Clear the board to test individual piece moves
+#	for i in range(len(board.pieces)):
+#		board.pieces[i] = 0
+#		board.teams[i] = 0
+#	test_index = 4 * board.BOARD_COLS + 4
+#	board.pieces[test_index] = Piece.QUEEN
+#	board.teams[test_index] = Team.WHITE
+
+# Clear the back row to test King/Rook and castle moves	
+	last_row = (board.BOARD_ROWS * board.BOARD_COLS) - board.BOARD_COLS
+	for i in range(8):
+		if board.pieces[i] != Piece.ROOK and board.pieces[i] != Piece.KING:
+			board.pieces[i] = Piece.NONE
+		if board.pieces[last_row+i] != Piece.ROOK and board.pieces[last_row+i] != Piece.KING:
+			board.pieces[last_row+i] = Piece.NONE
 
 def main():
 	SCREEN_W = 800
@@ -353,18 +380,14 @@ def main():
 	player_turn = Team.WHITE
 	moves = [[] for i in range(len(board.pieces))]
 
-# Clear the board to test individual piece moves
-#	for i in range(len(board.pieces)):
-#		board.pieces[i] = 0
-#		board.teams[i] = 0
-
-#	test_index = 4 * board.BOARD_COLS + 4
-#	board.pieces[test_index] = Piece.QUEEN
-#	board.teams[test_index] = Team.WHITE
-
 	while not WindowShouldClose():		
 		if IsWindowResized():
 			camera.offset.x, camera.offset.y = GetScreenWidth()/2, GetScreenHeight()/2
+
+		if IsKeyPressed(KEY_R):
+			player_turn = Team.WHITE
+			board.reset()
+			debug_reset(board)
 
 		view = Team.WHITE
 		rotation = (view == Team.WHITE) * 180
@@ -393,9 +416,35 @@ def main():
 					board.pieces[piece] = board.pieces[board.piece_selected]
 					board.teams[piece] = board.teams[board.piece_selected]
 
+					# Handle castle moves
+					if board.pieces[board.piece_selected] == Piece.KING:
+						board.kings_moved[player_turn] = True
+						for i in range(-1, 2, 2):
+							if piece == board.piece_selected+(2*i):
+								rook_index = piece
+								while board.pieces[rook_index] != Piece.ROOK:
+									rook_index += i
+								board.pieces[rook_index] = Piece.NONE
+								board.pieces[piece-i] = Piece.ROOK
+								# Rook states are stored left to right, so can cast bool to int here
+								board.rooks_moved[player_turn][int(rook_index < board.piece_selected)] = True
+					# Update rook states after initial move
+					# This will trigger if any rook was moved back to a board corner and moved again.
+					# However, the rook_moved state would already be True and it will only be reset to False on new game,
+					# so this check is correct when it needs to be
+					elif board.pieces[board.piece_selected] == Piece.ROOK:
+						rook_index = board.piece_selected
+						rook_x = rook_index % board.BOARD_COLS
+						if (
+							rook_index == 0 or 
+							rook_index == board.BOARD_COLS-1 or 
+							rook_index == len(board.pieces)-1 or 
+							rook_index == len(board.pieces)-board.BOARD_COLS
+						):
+							board.rooks_moved[player_turn][int(rook_x > board.BOARD_COLS//2)] = True
+					
 					board.pieces[board.piece_selected] = Piece.NONE
 					board.piece_selected = None
-
 					player_turn = int(not player_turn)
 
 				elif piece >= 0 and board.teams[piece] == player_turn:
