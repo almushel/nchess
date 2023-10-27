@@ -4,8 +4,6 @@ from enum import IntEnum, auto, unique
 from array import array
 
 # NOTE: Currently raises AttributeError on import, which can be fixed by removing attributes after and including "Drawing" in __all__
-SCREEN_W = 800
-SCREEN_H = 600
 GRID_SIZE = 50
 
 class Piece(IntEnum):
@@ -49,32 +47,6 @@ class ChessBoard:
 	@property
 	def rows(self):
 		return int(self.dimensions.y)
-
-	def reset(self):
-		piece = Piece.NONE
-		for y in range(8):
-			for x in range(8):
-				if y == 1 or y == 6:
-					piece = Piece.PAWN
-				elif y == 0 or y == 7:
-					if x == 0 or x == 7:
-						piece = Piece.ROOK
-					if x == 1 or x == 6:
-						piece = Piece.KNIGHT
-					if x == 2 or x == 5:
-						piece = Piece.BISHOP
-					if x == 3:
-						piece = Piece.KING
-					if x == 4:
-						piece = Piece.QUEEN
-				if piece != Piece.NONE:
-					index = y * 8 + x
-					if y > 4: self.teams[index] = Team.BLACK
-					self.pieces[index] = piece
-					piece = Piece.NONE
-		
-		self.rooks_moved = [[False, False] for i in range(Team.BLACK+1)]
-		self.kings_moved = [False for i in range(Team.BLACK+1)]
 
 	def world_to_board_pos(self, pos):
 		result = Vector2(
@@ -187,7 +159,8 @@ class ChessGame:
 
 	def __init__(self):
 		self.board = ChessBoard(Vector2(0,0), Vector2(self.BOARD_COLS, self.BOARD_ROWS), GRID_SIZE)
-		self.moves = [[] for i in range(len(self.board.pieces))]
+		self.moves_played = []
+		self.current_moves = [[] for i in range(len(self.board.pieces))]
 		self.piece_selected = None
 		self.piece_rotation = 0
 
@@ -198,6 +171,30 @@ class ChessGame:
 		self.turn = Team.WHITE
 		self.check = False
 		self.mate = False
+
+	def reset_board(self):
+		board = self.board
+		piece = Piece.NONE
+		for y in range(8):
+			for x in range(8):
+				if y == 1 or y == 6:
+					piece = Piece.PAWN
+				elif y == 0 or y == 7:
+					if x == 0 or x == 7:
+						piece = Piece.ROOK
+					if x == 1 or x == 6:
+						piece = Piece.KNIGHT
+					if x == 2 or x == 5:
+						piece = Piece.BISHOP
+					if x == 3:
+						piece = Piece.KING
+					if x == 4:
+						piece = Piece.QUEEN
+				if piece != Piece.NONE:
+					index = y * 8 + x
+					if y > 4: board.teams[index] = Team.BLACK
+					board.pieces[index] = piece
+					piece = Piece.NONE
 
 	def debug_reset(board):
 		# Clear the board to test individual piece moves
@@ -217,8 +214,16 @@ class ChessGame:
 				board.pieces[last_row+i] = Piece.NONE
 	
 	def new_game(self):
-		self.board.reset()
+		self.reset_board()
+		self.moves_played = []
+
+		self.rooks_moved = [[False, False] for i in range(Team.BLACK+1)]
+		self.kings_moved = [False for i in range(Team.BLACK+1)]
+
 		self.turn = Team.WHITE
+		self.check = False
+		self.mate = False
+		self.piece_selected = None
 	
 	def is_king_in_check(self, team):
 		king = -1
@@ -382,6 +387,42 @@ class ChessGame:
 				
 		return result
 	
+	def execute_move(self, start_index, target_index):
+		board = self.board
+		board.pieces[target_index] = board.pieces[start_index]
+		board.teams[target_index] = board.teams[start_index]
+
+		# Handle castle moves
+		if board.pieces[start_index] == Piece.KING:
+			board.kings_moved[self.turn] = True
+			for i in range(-1, 2, 2):
+				if target_index == start_index+(2*i):
+					rook_index = target_index
+					while board.pieces[rook_index] != Piece.ROOK:
+						rook_index += i
+					board.pieces[rook_index] = Piece.NONE
+					board.pieces[target_index-i] = Piece.ROOK
+					# Rook states are stored left to right, so can cast bool to int here
+					board.rooks_moved[self.turn][int(rook_index < start_index)] = True
+		# Update rook states after initial move
+		# This will trigger if any rook was moved back to a board corner and moved again.
+		# However, the rook_moved state would already be True and it will only be reset to False on new game,
+		# so this check is correct when it needs to be
+		elif board.pieces[start_index] == Piece.ROOK:
+			rook_index = start_index
+			rook_x = rook_index % board.cols
+			if (
+				rook_index == 0 or 
+				rook_index == board.cols-1 or 
+				rook_index == len(board.pieces)-1 or 
+				rook_index == len(board.pieces)-board.cols
+			):
+				board.rooks_moved[self.turn][int(rook_x > board.cols//2)] = True
+		
+		board.pieces[start_index] = Piece.NONE
+		start_index = None
+		self.turn = int(not self.turn)
+
 	def update(self, camera):
 		board = self.board
 
@@ -389,14 +430,14 @@ class ChessGame:
 			self.new_game()
 			self.debug_reset(board)
 
-		for i in range(len(self.moves)):
-			self.moves[i] = self.get_valid_moves(i)
+		for i in range(len(self.current_moves)):
+			self.current_moves[i] = self.get_valid_moves(i)
 
 		self.check = self.is_king_in_check(self.turn)
 		self.mate = True
 
 		for i in range(len(board.pieces)):
-			if board.teams[i] == self.turn and len(self.moves[i]): 
+			if board.teams[i] == self.turn and len(self.current_moves[i]): 
 				self.mate = False
 				break
 		
@@ -406,41 +447,11 @@ class ChessGame:
 			)
 
 			if self.piece_selected is not None and self.piece_selected != piece:
-				selected_moves = self.moves[self.piece_selected]
+				selected_moves = self.current_moves[self.piece_selected]
 				if piece in selected_moves:
-					board.pieces[piece] = board.pieces[self.piece_selected]
-					board.teams[piece] = board.teams[self.piece_selected]
-
-					# Handle castle moves
-					if board.pieces[self.piece_selected] == Piece.KING:
-						board.kings_moved[self.turn] = True
-						for i in range(-1, 2, 2):
-							if piece == self.piece_selected+(2*i):
-								rook_index = piece
-								while board.pieces[rook_index] != Piece.ROOK:
-									rook_index += i
-								board.pieces[rook_index] = Piece.NONE
-								board.pieces[piece-i] = Piece.ROOK
-								# Rook states are stored left to right, so can cast bool to int here
-								board.rooks_moved[self.turn][int(rook_index < self.piece_selected)] = True
-					# Update rook states after initial move
-					# This will trigger if any rook was moved back to a board corner and moved again.
-					# However, the rook_moved state would already be True and it will only be reset to False on new game,
-					# so this check is correct when it needs to be
-					elif board.pieces[self.piece_selected] == Piece.ROOK:
-						rook_index = self.piece_selected
-						rook_x = rook_index % board.cols
-						if (
-							rook_index == 0 or 
-							rook_index == board.cols-1 or 
-							rook_index == len(board.pieces)-1 or 
-							rook_index == len(board.pieces)-board.cols
-						):
-							board.rooks_moved[self.turn][int(rook_x > board.cols//2)] = True
-					
-					board.pieces[self.piece_selected] = Piece.NONE
-					self.piece_selected = None
-					self.turn = int(not self.turn)
+					self.execute_move(self.piece_selected, piece)
+					move_played = (self.piece_selected, piece)
+					self.moves_played.append(move_played)
 
 				elif piece >= 0 and board.teams[piece] == self.turn:
 					self.piece_selected = piece
@@ -459,7 +470,7 @@ class ChessGame:
 			rect = Rectangle(grid_pos.x*GRID_SIZE, grid_pos.y*GRID_SIZE, GRID_SIZE, GRID_SIZE)
 			DrawRectangleLinesEx(rect, 4, GREEN)
 
-			for piece in self.moves[self.piece_selected]:
+			for piece in self.current_moves[self.piece_selected]:
 				grid_pos = self.board.piece_index_to_grid_pos(piece)
 				rect = Rectangle(grid_pos.x*GRID_SIZE, grid_pos.y*GRID_SIZE, GRID_SIZE, GRID_SIZE)
 				DrawRectangleLinesEx(rect, 4, YELLOW)
@@ -482,32 +493,3 @@ class ChessGame:
 		elif self.mate:
 			width = MeasureText("Draw!", 24)
 			DrawText("Draw!", GetScreenWidth()/2 - width/2, GetScreenHeight()-font_size, font_size, ORANGE)
-
-def main():
-	InitWindow(SCREEN_W, SCREEN_H, "Net Chess")
-
-	game = ChessGame()
-	game.new_game()
-	camera = Camera2D(Vector2(SCREEN_W/2, SCREEN_H/2),Vector2(game.board.x + game.board.width/2,game.board.y+game.board.height/2), 0, 1)
-
-	while not WindowShouldClose():		
-		if IsWindowResized():
-			camera.offset.x, camera.offset.y = GetScreenWidth()/2, GetScreenHeight()/2
-
-		camera.rotation = (game.view == Team.WHITE) * 180
-		game.update(camera)
-		
-		BeginDrawing()
-		ClearBackground(RAYWHITE)
-		
-		BeginMode2D(camera)
-		game.draw_2D()
-		EndMode2D()
-
-		game.draw_overlay()
-
-		EndDrawing()
-
-	CloseWindow()
-
-main()
