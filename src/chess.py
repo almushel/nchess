@@ -1,9 +1,8 @@
 from raylib import *
 from math import *
-from enum import IntEnum, auto, unique
+from enum import IntEnum, auto
 from array import array
 
-# NOTE: Currently raises AttributeError on import, which can be fixed by removing attributes after and including "Drawing" in __all__
 GRID_SIZE = 50
 
 class Piece(IntEnum):
