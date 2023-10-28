@@ -1,11 +1,12 @@
 import socket
-from multiprocessing import Process
+import select
+from time import sleep
 from raylib import *
 from chess import ChessGame
 
 SCREEN_W = 800
 SCREEN_H = 600
-MOVE_TEMPLATE = "00,00"
+MOVE_TEMPLATE = b"00,00"
 
 def play_chess(game_socket: socket.socket, team):
 	InitWindow(SCREEN_W, SCREEN_H, "Net Chess")
@@ -21,15 +22,29 @@ def play_chess(game_socket: socket.socket, team):
 
 		camera.rotation = (game.view == 0) * 180
 		
+		select_result = select.select([game_socket], [game_socket], [])
+		disconnected = False
+		msg_bytes = None
+		if len(select_result[0]):
+			msg_bytes = game_socket.recv(len(MOVE_TEMPLATE))
+			disconnected = (msg_bytes == b"")
+		
 		if game.turn == game.view:
 			game.update(camera)
-			if game.turn != game.view:
+			if game.turn != game.view and len(select_result[1]):
 				game_socket.sendall(f"{game.moves_played[-1][0]},{game.moves_played[-1][1]}".encode("utf-8") )
 		else:
-			msg_bytes = game_socket.recv(len(MOVE_TEMPLATE))
-			move_str = bytes.decode(msg_bytes)
-			moves = move_str.split(",")
-			game.execute_move(int(moves[0]), int(moves[1]))
+			game.update(camera)
+			# Just ignore piece selection when other client's move
+			game.piece_selected = None
+			if msg_bytes and not disconnected:
+				move_str = bytes.decode(msg_bytes)
+				moves = move_str.split(",")
+				game.execute_move(int(moves[0]), int(moves[1]))
+		
+		if disconnected:
+			game_socket.detach()
+			CloseWindow()
 
 		BeginDrawing()
 		ClearBackground(RAYWHITE)
@@ -46,10 +61,11 @@ def play_chess(game_socket: socket.socket, team):
 
 if __name__ == "__main__":
 	sock = socket.socket()
-	print("Connecting to localhost:4242")
-	sock.connect(("localhost", 4242))
-	print("Connected. Playing Chess")
+	print("Waiting for host at localhost:4242. . .")
+	
+	while sock.connect_ex(("localhost", 4242)) != 0: {
+		sleep(0.1)
+	}
+	print("Connected. Playing Chess.")
 
-	p = Process(target=play_chess, args=(sock, 1))
-	p.start()
-	p.join()
+	play_chess(sock, 1)

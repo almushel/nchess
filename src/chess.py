@@ -75,7 +75,8 @@ class ChessBoard:
 
 		return result
 
-	def draw_board(self):
+	def draw_board(self, 
+			piece_rotation=180):
 		# TO-DO: Pass in piece sprites as images (probably in __init__)
 		# To-DO: handle consistent piece rotation and labels for black/white board views
 		piece_labels = ["" for i in range(Piece.QUEEN.value + 1)]
@@ -85,6 +86,7 @@ class ChessBoard:
 		piece_labels[Piece.BISHOP] 	= "B"
 		piece_labels[Piece.KING] 	= "K"
 		piece_labels[Piece.QUEEN] 	= "Q"
+		
 
 		draw_x = self.x
 		draw_y = self.y
@@ -108,8 +110,10 @@ class ChessBoard:
 					
 					DrawCircleGradient(draw_x + self.grid_size/2, draw_y + self.grid_size/2, self.grid_size/1.5, p_color_1, p_color_2)
 
-					piece_rotation = 180
-					offset = Vector2(MeasureText(piece_labels[piece], self.grid_size), self.grid_size)
+					if piece_rotation:
+						offset = Vector2(MeasureText(piece_labels[piece], self.grid_size), self.grid_size)
+					else:
+						offset = Vector2(0,0)
 
 					DrawTextPro(
 						GetFontDefault(), piece_labels[piece], 
@@ -125,11 +129,8 @@ class ChessBoard:
 			draw_y += self.grid_size
 			square_color = int(not square_color)
 
-	def draw_labels(self):		
+	def draw_labels(self, colors):		
 		font_size = self.grid_size / 2
-		font_color = GRAY
-		offside_color = font_color.rgba
-		offside_color.a //= 2
 
 		padding_y = self.y + (self.grid_size - font_size) / 2
 		for i in range(8):
@@ -137,13 +138,13 @@ class ChessBoard:
 			padding_x = self.x + (self.grid_size - width) / 2
 
 			# NOTE: offside_color current assumes white side view
-			DrawText("abcdefgh"[7-i], padding_x + self.grid_size*i, padding_y + self.height, font_size, offside_color)
-			DrawTextPro(GetFontDefault(), "abcdefgh"[7-i], Vector2(padding_x + self.grid_size*i, padding_y - self.grid_size), Vector2(width,font_size), 180, font_size, 0, font_color)
+			DrawText("abcdefgh"[7-i], padding_x + self.grid_size*i, padding_y + self.height, font_size, colors[1])
+			DrawTextPro(GetFontDefault(), "abcdefgh"[7-i], Vector2(padding_x + self.grid_size*i, padding_y - self.grid_size), Vector2(width,font_size), 180, font_size, 0, colors[0])
 
 			width = MeasureText("12345678"[i], font_size)
 			padding_x = self.x + (self.grid_size - width) / 2
-			DrawText("12345678"[i], padding_x - self.grid_size, padding_y + self.grid_size*i, font_size, offside_color)
-			DrawTextPro(GetFontDefault(), "12345678"[i], Vector2(padding_x + self.width, padding_y + self.grid_size*i), Vector2(width,font_size), 180, font_size, 0, font_color)
+			DrawText("12345678"[i], padding_x - self.grid_size, padding_y + self.grid_size*i, font_size, colors[1])
+			DrawTextPro(GetFontDefault(), "12345678"[i], Vector2(padding_x + self.width, padding_y + self.grid_size*i), Vector2(width,font_size), 180, font_size, 0, colors[0])
 
 	def draw(self):
 		self.draw_board()
@@ -162,7 +163,6 @@ class ChessGame:
 		self.moves_played = []
 		self.current_moves = [[] for i in range(len(self.board.pieces))]
 		self.piece_selected = None
-		self.piece_rotation = 0
 
 		self.rooks_moved = [[False, False] for i in range(Team.BLACK+1)]
 		self.kings_moved = [False for i in range(Team.BLACK+1)]
@@ -420,7 +420,6 @@ class ChessGame:
 				board.rooks_moved[self.turn][int(rook_x > board.cols//2)] = True
 		
 		board.pieces[start_index] = Piece.NONE
-		start_index = None
 		self.turn = int(not self.turn)
 
 	def update(self, camera):
@@ -452,6 +451,7 @@ class ChessGame:
 					self.execute_move(self.piece_selected, piece)
 					move_played = (self.piece_selected, piece)
 					self.moves_played.append(move_played)
+					self.piece_selected = None
 
 				elif piece >= 0 and board.teams[piece] == self.turn:
 					self.piece_selected = piece
@@ -463,7 +463,11 @@ class ChessGame:
 
 	# Called in Mode2d
 	def draw_2D(self):
-		self.board.draw_board()
+		if self.view == Team.BLACK:
+			piece_rotation = 0
+		else:
+			piece_rotation = 180
+		self.board.draw_board(piece_rotation)
 
 		if self.piece_selected is not None:
 			grid_pos = self.board.piece_index_to_grid_pos(self.piece_selected)
@@ -475,7 +479,12 @@ class ChessGame:
 				rect = Rectangle(grid_pos.x*GRID_SIZE, grid_pos.y*GRID_SIZE, GRID_SIZE, GRID_SIZE)
 				DrawRectangleLinesEx(rect, 4, YELLOW)
 
-		self.board.draw_labels()
+		if self.view == Team.WHITE:
+			label_colors = (GRAY, Color(GRAY.r, GRAY.g, GRAY.b, 255//2))
+		else: 
+			label_colors = (Color(GRAY.r, GRAY.g, GRAY.b, 255//2), GRAY)
+
+		self.board.draw_labels(label_colors)
 
 	#Called after Mode2D
 	def draw_overlay(self):
