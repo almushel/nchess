@@ -2,14 +2,26 @@
 
 A simple networked chess game using Python and bindings for the [raylib](https://github.com/raysan5/raylib) game programming library.
 
-## Building
+## Downloading and Building
 
-The expected raylib version and the [raylibpyctbg](https://github.com/overdev/raylibpyctbg) binding generator are included as git submodules. The `build.sh` script will setup (with CMake) and build the library and then generate the binding file. Some modification will likely be necessary to build on Windows.
+The expected raylib version and the [raylibpyctbg](https://github.com/overdev/raylibpyctbg) binding generator are included as git submodules. If you have already cloned the repo without the `--recurse_submodules` option, you can update these with the following:
+
+```sh
+git submodule update --init --recursive
+```
+
+Running the `build.sh` script will setup (with CMake) and build the library and then call `generate_bindings.sh` to generate the binding file. Some modification will likely be necessary to build on Windows.
 
 ## Running the Game
 
-Currently, Net Chess supports two ways to play:
+```sh
+python src/main.py
+```
 
-1. You can play a local game with both players in the same window by running `main.py.`
+By default, running `main.py` will start a local two player chess match. However, the program supports several command-line arguments that allow you to host and join networked games between a host and a client.
 
-2. For a two player game, run `chess_server.py` and `chess_client.py` respectively. The order doesn't matter. They will wait for a connection before opening a window. Currently, these are both hardcoded to run at `localhost:4242`.
+| Argument  | Default  | Description |
+|-----------|----------|-------------|
+|`-m` / `--mode`    | `None`	  | Tells the program to `host` or `join` a game. If undefined, a single client session is started and other arguments will be ignored. |
+|`-a` / `--address` | `localhost` | Sets the address at which the game will be hosted or joined |
+|`-p` / `--port` 	| `4242` 	  | Sets the port at which the game will be hosted or joined |	
