@@ -109,26 +109,18 @@ if __name__ == "__main__":
 	group = parser.add_mutually_exclusive_group()
 	group.add_argument("-hh", "--host", action="store_true", help="Host a game at (-a)ddress:(-p)ort")
 	group.add_argument("-j", "--join", action="store_true", help="Join a game at (-a)ddress:(-p)ort")
-	parser.add_argument("-a", "--address", help="Address for nchess game (default: localhost)")
-	parser.add_argument("-p", "--port", type=int, help="Port for nchess game (default: 4242)")
+	parser.add_argument("-a", "--addr", help=f"Address for nchess game (default: {DEFAULT_ADDRESS})", default=DEFAULT_ADDRESS)
+	parser.add_argument("-p", "--port", help=f"Port for nchess game (default: {DEFAULT_PORT})", default=DEFAULT_PORT)
 
 	args = parser.parse_args() 
-	
-	address = DEFAULT_ADDRESS
-	if args.address is not None:
-		address = args.address
-	
-	port = DEFAULT_PORT
-	if args.port is not None:
-		port = args.port
-
+	print(args)
 	if args.host:
-		host_game(address, port)			 
+		host_game(args.addr, args.port)			 
 	elif args.join: 
 		sock = socket.socket()
-		print(f"Waiting for host at {address}:{port}. . .")
+		print(f"Waiting for host at {args.addr}:{args.port}. . .")
 		
-		while sock.connect_ex((address, port)) != 0:
+		while sock.connect_ex((args.addr, args.port)) != 0:
 			sleep(0.1)
 		
 		print("Connected. Playing Chess.")
