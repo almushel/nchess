@@ -20,8 +20,9 @@ python src/main.py
 
 By default, running `main.py` will start a local two player chess match. However, the program supports several command-line arguments that allow you to host and join networked games between a host and a client.
 
-| Argument  | Default  | Description |
-|-----------|----------|-------------|
-|`-m` / `--mode`    | `None`	  | Tells the program to `host` or `join` a game. If undefined, a single client session is started and other arguments will be ignored. |
-|`-a` / `--address` | `localhost` | Sets the address at which the game will be hosted or joined |
-|`-p` / `--port` 	| `4242` 	  | Sets the port at which the game will be hosted or joined |	
+| 		Argument		| Default		| Description |
+|-----------------------|---------------|-------------|
+|`-hh` / `--host`		| `False`	  	| Host a new game at (`-a`)ddress:(`-p`)ort. |
+|`-j` / `--join`		| `False`	  	| Join a game at (`-a`)ddress:(`-p`)ort. |
+|`-a` / `--address`		| `localhost` 	| Sets the address at which the game will be hosted or joined |
+|`-p` / `--port` 		| `4242` 	  	| Sets the port at which the game will be hosted or joined |	

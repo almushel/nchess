@@ -1,29 +1,16 @@
+import argparse
 from time import sleep
 import socket
 import select
-import multiprocessing
-import argparse
 
 from raylib import *
-from chess import *
+from chess import (ChessGame, Team)
 
 SCREEN_W = 800
 SCREEN_H = 600
 DEFAULT_ADDRESS = "localhost"
 DEFAULT_PORT = 4242
 MOVE_TEMPLATE = b"00,00"
-
-def host_game(address, port):
-	server_socket = socket.socket()
-	server_socket.bind((address, port))
-	server_socket.listen(1)
-
-	print(f"Waiting for client at {address}:{port}. . .")
-
-	clientsocket, address = server_socket.accept()
-	client = multiprocessing.Process(target=join_game, args=(clientsocket, 0))
-	client.start()
-	client.join()
 
 def join_game(game_socket, team):
 	InitWindow(SCREEN_W, SCREEN_H, "Net Chess")
@@ -76,6 +63,16 @@ def join_game(game_socket, team):
 
 	CloseWindow()
 
+def host_game(address, port):
+	server_socket = socket.socket()
+	server_socket.bind((address, port))
+	server_socket.listen(1)
+
+	print(f"Waiting for client at {address}:{port}. . .")
+
+	clientsocket, address = server_socket.accept()
+	join_game(clientsocket, 0)
+
 def play_game():
 	InitWindow(SCREEN_W, SCREEN_H, "Net Chess")
 
@@ -109,9 +106,11 @@ if __name__ == "__main__":
 		prog="Net Chess",
 		description="A simple networked chess game",
 	)	
-	parser.add_argument("-m", "--mode", choices=["host", "join"])
-	parser.add_argument("-a", "--address")
-	parser.add_argument("-p", "--port", type=int)
+	group = parser.add_mutually_exclusive_group()
+	group.add_argument("-hh", "--host", action="store_true", help="Host a game at (-a)ddress:(-p)ort")
+	group.add_argument("-j", "--join", action="store_true", help="Join a game at (-a)ddress:(-p)ort")
+	parser.add_argument("-a", "--address", help="Address for nchess game (default: localhost)")
+	parser.add_argument("-p", "--port", type=int, help="Port for nchess game (default: 4242)")
 
 	args = parser.parse_args() 
 	
@@ -123,15 +122,15 @@ if __name__ == "__main__":
 	if args.port is not None:
 		port = args.port
 
-	if args.mode == "host":
+	if args.host:
 		host_game(address, port)			 
-	elif args.mode == "join": 
+	elif args.join: 
 		sock = socket.socket()
 		print(f"Waiting for host at {address}:{port}. . .")
 		
-		while sock.connect_ex((address, port)) != 0: {
+		while sock.connect_ex((address, port)) != 0:
 			sleep(0.1)
-		}
+		
 		print("Connected. Playing Chess.")
 
 		join_game(sock, 1)
